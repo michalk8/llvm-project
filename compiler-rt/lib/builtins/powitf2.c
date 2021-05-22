@@ -12,7 +12,7 @@
 
 #include "int_lib.h"
 
-#if _ARCH_PPC
+#if defined _ARCH_PPC || defined __wasm__
 
 // Returns: a ^ b
 

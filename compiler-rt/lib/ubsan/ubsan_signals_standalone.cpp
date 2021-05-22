@@ -1,4 +1,5 @@
-//=-- ubsan_signals_standalone.cpp ----------------------------------------===//
+//=-- ubsan_signals_standalone.cc
+//------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -26,7 +27,7 @@
 // debuggerd handler, but before the ART handler.
 // * Interceptors don't work at all when ubsan runtime is loaded late, ex. when
 // it is part of an APK that does not use wrap.sh method.
-#if SANITIZER_FUCHSIA || SANITIZER_ANDROID
+#if SANITIZER_FUCHSIA || SANITIZER_ANDROID || SANITIZER_EMSCRIPTEN
 
 namespace __ubsan {
 void InitializeDeadlySignals() {}
@@ -45,9 +46,8 @@ namespace __ubsan {
 
 static void OnStackUnwind(const SignalContext &sig, const void *,
                           BufferedStackTrace *stack) {
-  ubsan_GetStackTrace(stack, kStackTraceMax,
-                      StackTrace::GetNextInstructionPc(sig.pc), sig.bp,
-                      sig.context, common_flags()->fast_unwind_on_fatal);
+  ubsan_GetStackTrace(stack, kStackTraceMax, sig.pc, sig.bp, sig.context,
+                common_flags()->fast_unwind_on_fatal);
 }
 
 static void UBsanOnDeadlySignal(int signo, void *siginfo, void *context) {

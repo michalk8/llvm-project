@@ -1,4 +1,4 @@
-//===-- ubsan_diag.cpp ----------------------------------------------------===//
+//===-- ubsan_diag.cc -----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -404,7 +404,7 @@ static const char *kSuppressionTypes[] = {
 
 void __ubsan::InitializeSuppressions() {
   CHECK_EQ(nullptr, suppression_ctx);
-  suppression_ctx = new (suppression_placeholder)
+  suppression_ctx = new (suppression_placeholder) // NOLINT
       SuppressionContext(kSuppressionTypes, ARRAY_SIZE(kSuppressionTypes));
   suppression_ctx->ParseFromFile(flags()->suppressions);
 }

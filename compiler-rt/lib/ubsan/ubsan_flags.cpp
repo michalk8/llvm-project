@@ -1,4 +1,4 @@
-//===-- ubsan_flags.cpp ---------------------------------------------------===//
+//===-- ubsan_flags.cc ----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,6 +18,11 @@
 #include "sanitizer_common/sanitizer_flag_parser.h"
 
 #include <stdlib.h>
+
+#if SANITIZER_EMSCRIPTEN
+extern "C" void emscripten_builtin_free(void *);
+#include <emscripten/em_asm.h>
+#endif
 
 namespace __ubsan {
 
@@ -54,7 +59,12 @@ void InitializeFlags() {
   {
     CommonFlags cf;
     cf.CopyFrom(*common_flags());
+    cf.print_summary = false;
+#if !SANITIZER_EMSCRIPTEN
+    // getenv on emscripten uses malloc, which we can't when using some sanitizers.
+    // You can't run external symbolizers anyway.
     cf.external_symbolizer_path = GetFlag("UBSAN_SYMBOLIZER_PATH");
+#endif
     OverrideCommonFlags(cf);
   }
 
@@ -67,8 +77,20 @@ void InitializeFlags() {
 
   // Override from user-specified string.
   parser.ParseString(MaybeCallUbsanDefaultOptions());
+
   // Override from environment variable.
-  parser.ParseStringFromEnv("UBSAN_OPTIONS");
+#if SANITIZER_EMSCRIPTEN
+  char *options = (char*) EM_ASM_INT({
+    return withBuiltinMalloc(function () {
+      return allocateUTF8(Module['UBSAN_OPTIONS'] || 0);
+    });
+  });
+  parser.ParseString(options);
+  emscripten_builtin_free(options);
+#else
+  parser.ParseString(GetEnv("UBSAN_OPTIONS"));
+#endif // SANITIZER_EMSCRIPTEN
+
   InitializeCommonFlags();
   if (Verbosity()) ReportUnrecognizedFlags();
 
