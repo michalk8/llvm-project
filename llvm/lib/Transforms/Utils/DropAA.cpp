@@ -4,20 +4,38 @@
 
 using namespace llvm;
 
-static cl::opt<unsigned>
-    RandomSeed("dropaa-seed", cl::Hidden, cl::desc("Random seed."), cl::init(0));
+static cl::opt<unsigned int>
+    RandomSeed("dropaa-seed", cl::Hidden,
+               cl::desc("Random seed. If 0, the seed is random."),
+               cl::init(0));
 static cl::opt<float>
-    FnKeep("dropaa-fn-keep", cl::Hidden, cl::desc("f"), cl::init(1.0));
+    FnKeep("dropaa-fn-keep", cl::Hidden,
+           cl::desc("Fraction of function attributes to keep."),
+           cl::init(1.0));
 static cl::opt<float>
-    FnArgKeep("dropaa-fna-keep", cl::Hidden, cl::desc("f"), cl::init(1.0));
+    FnArgKeep("dropaa-fna-keep", cl::Hidden,
+              cl::desc("Fraction of function argument attributes to keep."),
+              cl::init(1.0));
 static cl::opt<float>
-    FnRetKeep("dropaa-fnr-keep", cl::Hidden, cl::desc("f"), cl::init(1.0));
+    FnRetKeep("dropaa-fnr-keep", cl::Hidden,
+              cl::desc("Fraction of function return attributes to keep."),
+              cl::init(1.0));
 static cl::opt<float>
-    CbKeep("dropaa-cb-keep", cl::Hidden, cl::desc("f"), cl::init(1.0));
+    CbKeep("dropaa-cb-keep", cl::Hidden,
+           cl::desc("Fraction of callsite attributes to keep."),
+           cl::init(1.0));
 static cl::opt<float>
-    CbArgKeep("dropaa-cba-keep", cl::Hidden, cl::desc("f"), cl::init(1.0));
+    CbArgKeep("dropaa-cba-keep", cl::Hidden,
+              cl::desc("Fraction of callsite arguments attributes to keep."),
+              cl::init(1.0));
 static cl::opt<float>
-    CbRetKeep("dropaa-cbr-keep", cl::Hidden, cl::desc("f"), cl::init(1.0));
+    CbRetKeep("dropaa-cbr-keep", cl::Hidden,
+              cl::desc("Fraction of callsite return attributes to keep."),
+              cl::init(1.0));
+static cl::opt<bool>
+    Verbose("dropaa-verbose", cl::Hidden,
+            cl::desc("Be verbose."),
+            cl::init(false));
 
 
 SmallMap::ValueTy SmallMap::operator[](IRPosition::Kind kind) const {
@@ -48,6 +66,9 @@ bool llvm::removeAttributes(IRPosition &IRP,
   ValueTy Threshold = FracToKeep[IRP.getPositionKind()];
   bool changed = false;
 
+  if (Verbose.getValue())
+    outs() << "[DropAA] " << "IRP: " << IRP << ", keep fraction: " << Threshold << "\n";
+
   auto *CB = dyn_cast<CallBase>(&IRP.getAnchorValue());
   if (CB)
     AttrList = CB->getAttributes();
@@ -56,11 +77,18 @@ bool llvm::removeAttributes(IRPosition &IRP,
   NewAttrList = AttrList;
 
   LLVMContext &Ctx = IRP.getAnchorValue().getContext();
-  // TODO: inefficient
+  // TODO: not very efficient
   for (auto &AS: AttrList) {
     for (auto &A: AS) {
+      if (!NewAttrList.hasAttribute(IRP.getAttrIdx(), A.getKindAsEnum()))
+        continue;
+
       ValueTy Random = Rng(Mt);
-      // TODO: add debug logging
+      if (Verbose.getValue())
+        outs() << "[DropAA] " <<
+                  (Random > Threshold ? "Removing: " : "Keeping: ") <<
+                  A.getAsString() << ", random: " << Random << "\n";
+
       if (Random > Threshold) {
         NewAttrList = NewAttrList.removeAttribute(Ctx, IRP.getAttrIdx(), A.getKindAsEnum());
         changed = true;
@@ -81,7 +109,14 @@ PreservedAnalyses DropAAPass::run(Module &M, ModuleAnalysisManager &AM) {
       SmallMap(FnKeep.getValue(), FnArgKeep.getValue(), FnRetKeep.getValue(),
                CbKeep.getValue(), CbArgKeep.getValue(), CbRetKeep.getValue());
 
-  std::mt19937 Mt(RandomSeed.getValue());
+  unsigned int seed;
+  if (RandomSeed.getValue() == 0) {
+    std::random_device Device;
+    seed = Device();
+  } else
+    seed = RandomSeed.getValue();
+  std::mt19937 Mt(seed);
+
   std::uniform_real_distribution<SmallMap::ValueTy> Rng(0.0, 1.0);
   bool changed = false;
   SetVector<Function *> Functions;
