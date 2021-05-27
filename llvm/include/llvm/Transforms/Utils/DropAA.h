@@ -12,7 +12,7 @@ namespace llvm {
 
 class DropAAPass: public PassInfoMixin<DropAAPass> {
 public:
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 class SmallMap {
