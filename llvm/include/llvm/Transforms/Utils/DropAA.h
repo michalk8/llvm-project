@@ -35,10 +35,10 @@ private:
   StorageTy Storage;
 };
 
-bool removeAttributes(IRPosition&,
-                      const SmallMap&,
+bool removeAttributes(IRPosition &,
+                      const SmallMap &,
                       std::mt19937 &,
-                      std::uniform_real_distribution<SmallMap::ValueTy>&);
+                      std::uniform_real_distribution<SmallMap::ValueTy> &);
 
 } // namespace llvm
 

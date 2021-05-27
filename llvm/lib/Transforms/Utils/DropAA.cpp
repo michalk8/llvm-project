@@ -39,10 +39,10 @@ SmallMap::ValueTy SmallMap::operator[](IRPosition::Kind kind) const {
   }
 }
 
-bool llvm::removeAttributes(IRPosition& IRP,
-                            const SmallMap& FracToKeep,
-                            std::mt19937& Mt,
-                            std::uniform_real_distribution<SmallMap::ValueTy>& Rng) {
+bool llvm::removeAttributes(IRPosition &IRP,
+                            const SmallMap &FracToKeep,
+                            std::mt19937 &Mt,
+                            std::uniform_real_distribution<SmallMap::ValueTy> &Rng) {
   AttributeList AttrList, NewAttrList;
   SmallMap::ValueTy Threshold = FracToKeep[IRP.getPositionKind()];
   bool changed = false;
@@ -82,12 +82,33 @@ PreservedAnalyses DropAAPass::run(Function &F,
   std::uniform_real_distribution<SmallMap::ValueTy> Rng(0.0, 1.0);
   bool changed = false;
 
-  IRPosition IRP = IRPosition::function(F);
-  changed |= removeAttributes(IRP, FracToKeep, Mt, Rng);
+  IRPosition FPos = IRPosition::function(F);
+  changed |= removeAttributes(FPos, FracToKeep, Mt, Rng);
 
-  for (Argument& Arg: F.args()) {
+  Type *ReturnType = F.getReturnType();
+  if (!ReturnType->isVoidTy()) {
+    IRPosition RetPos = IRPosition::returned(F);
+    changed |= removeAttributes(RetPos, FracToKeep, Mt, Rng);
+  }
+
+  for (Argument &Arg: F.args()) {
     IRPosition ArgPos = IRPosition::argument(Arg);
     changed |= removeAttributes(ArgPos, FracToKeep, Mt, Rng);
+  }
+
+  for (auto &BB : F) {
+    for (auto &Inst : BB) {
+      if (isa<InvokeInst>(Inst) || isa<CallBrInst>(Inst) || isa<CallInst>(Inst)) {
+        auto &CB = cast<CallBase>(Inst);
+        IRPosition CBRetPos = IRPosition::callsite_returned(CB);
+        changed |= removeAttributes(CBRetPos, FracToKeep, Mt, Rng);
+
+        for (int I = 0, E = CB.getNumArgOperands(); I < E; ++I) {
+          IRPosition CBArgPos = IRPosition::callsite_argument(CB, I);
+          changed |= removeAttributes(CBArgPos, FracToKeep, Mt, Rng);
+        }
+      }
+    }
   }
 
   if (changed)
